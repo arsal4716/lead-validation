@@ -46,8 +46,7 @@ const upload = multer({
 });
 
 const TRUSTEDFORM_CREDENTIALS = {
-  username: "fsinta@hlgsolutions.net",
-  password: "Tar@gLkA6R2Uzux16",
+  apiKey: "d8ad0a7018e52fc200cd0a4b1351a7b6",
 };
 
 const extractCertId = (url) => {
@@ -59,54 +58,51 @@ const extractCertId = (url) => {
 const validateTrustedFormToken = async (certInput) => {
   try {
     const certId = extractCertId(certInput);
-    console.log(" Validating TrustedForm cert ID:", certId);
+    if (!certId) throw new Error("Invalid certificate URL or ID");
 
     const url = `https://cert.trustedform.com/${certId}/validate`;
-    console.log("Request URL:", url);
+
+    const authHeader =
+      "Basic " +
+      Buffer.from(`X:${TRUSTEDFORM_CREDENTIALS.apiKey}`).toString("base64");
 
     const response = await axios.get(url, {
-      auth: {
-        username: TRUSTEDFORM_CREDENTIALS.username,
-        password: TRUSTEDFORM_CREDENTIALS.password,
-      },
       headers: {
-        "Content-Type": "application/json",
+        Accept: "application/json",
+        Authorization: authHeader,
       },
     });
-
-    console.log("TrustedForm Response:", response.data);
-
     return {
       valid: response.data.outcome === "success",
       outcome: response.data.outcome,
       reason: response.data.reason,
       message:
         response.data.outcome === "success"
-          ? "Valid certificate"
-          : response.data.reason,
+          ? "Valid TrustedForm certificate"
+          : response.data.reason || "Invalid certificate",
     };
   } catch (error) {
-    console.error("TrustedForm validation error:", error.message);
-
     if (error.response) {
       console.error("Response Status:", error.response.status);
       console.error("Response Data:", error.response.data);
-    }
 
-    if (error.response?.status === 401) {
-      return {
-        valid: false,
-        message: "Authentication failed - check credentials",
-      };
-    } else if (error.response?.status === 404) {
-      return { valid: false, message: "Certificate not found" };
+      if (error.response.status === 401) {
+        return {
+          valid: false,
+          message: "Authentication failed — check API key or permissions.",
+        };
+      }
+
+      if (error.response.status === 404) {
+        return { valid: false, message: "Certificate not found." };
+      }
     }
 
     return {
       valid: false,
       message:
         error.response?.data?.message ||
-        "Error validating TrustedForm certificate",
+        "Error validating TrustedForm certificate.",
     };
   }
 };
